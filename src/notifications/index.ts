@@ -1,32 +1,29 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
-import { getUser } from "../lib/storage/userStorage";
-import { asyncUser } from "../lib/types";
+import { Alert, Platform } from "react-native";
 
-export async function registerForPushNotificationsAsync(): Promise<
-  { success: boolean; data?: string } | undefined
-> {
+export async function registerForPushNotificationsAsync(): Promise<{
+  success: boolean;
+  data?: string;
+}> {
   try {
-    if (!Device.isDevice) {
-      alert("Notificações push funcionam apenas em dispositivos físicos");
-      return { success: false };
+    if (!Device.isDevice)
+      throw new Error(
+        "Notificações push funcionam apenas em dispositivos físicos"
+      );
+
+    let finalStatus: Notifications.PermissionStatus;
+    const permissions = await Notifications.getPermissionsAsync();
+
+    if (permissions.status !== "granted") {
+      const requestPermissions = await Notifications.requestPermissionsAsync();
+      finalStatus = requestPermissions.status;
+    } else {
+      finalStatus = permissions.status;
     }
 
-    const { status } = await Notifications.getPermissionsAsync();
-
-    let finalStatus = status;
-
-    if (status !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== "granted") {
-      alert("Permissão para notificações foi negada");
-      return { success: false };
-    }
+    if (finalStatus !== "granted")
+      throw new Error("Permissão para notificações foi negada");
 
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
@@ -37,25 +34,14 @@ export async function registerForPushNotificationsAsync(): Promise<
       });
     }
 
-    //Pegar o Expo Push Token => Mostrar a lógica pro Douglas
     let tokenData = await Notifications.getExpoPushTokenAsync();
 
-    const newToken = tokenData.data;
-
-    //Pegar o token da Expo no AsyncStorage
-    const parsedValue = await getUser();
-
-    const updatedValue: asyncUser = {
-      ...(parsedValue ?? {}),
-      expoPushToken: newToken,
-    };
-
-    if (!parsedValue || parsedValue.expoPushToken !== newToken) {
-      await AsyncStorage.setItem("user", JSON.stringify(updatedValue));
-    }
-
-    return { success: true, data: newToken };
+    return { success: true, data: tokenData.data };
   } catch (error: any) {
-    console.warn(error.message);
+    Alert.alert("msg do erro =>", error.message);
+
+    return {
+      success: false,
+    };
   }
 }

@@ -31,65 +31,54 @@ function AppContent() {
   const { login, finishLoading, isLoading } = useAuth();
   const navigationRef = useNavigationContainerRef();
 
-  useEffect(() => {
-    const initialSetUp = async () => {
-      try {
-        let parsedValue = await getUser();
+  const initialSetUp = async (): Promise<void> => {
+    try {
+      let usuario = await getUser();
 
-        // 1️⃣ Garante que sempre exista um deviceKey
-        if (!parsedValue?.deviceKey) {
-          const newDeviceKey = randomDeviceKey(15);
-          parsedValue = { ...parsedValue, deviceKey: newDeviceKey };
-          await AsyncStorage.setItem("user", JSON.stringify(parsedValue));
-        }
+      // 1️⃣ Garante que sempre exista um deviceKey
+      if (!usuario.deviceKey) {
+        usuario.deviceKey = randomDeviceKey(15);
+        await AsyncStorage.setItem("user", JSON.stringify(usuario));
+      }
 
-        // 2️⃣ Pede permissão e gera ExpoPushToken
+      // 2️⃣ Garante que sempre exista um expoPushToken
+      if (!usuario.expoPushToken) {
         const expoPushTokenResponse = await registerForPushNotificationsAsync();
 
-        if (expoPushTokenResponse?.success && expoPushTokenResponse.data) {
-          parsedValue = {
-            ...parsedValue,
-            expoPushToken: expoPushTokenResponse.data,
-          };
-          await AsyncStorage.setItem("user", JSON.stringify(parsedValue));
-
-          // 3️⃣ Registra device no backend
-          const deviceObj = {
-            uuid: parsedValue.deviceKey,
-            token: expoPushTokenResponse.data,
-          };
-
-          try {
-            const registerResponse = await axios.post(
-              BASE_API_REGISTER_DEVICE,
-              deviceObj
-            );
-            console.log("registerResponse", registerResponse.data);
-          } catch (err: any) {
-            console.warn(
-              "Erro ao registrar device:",
-              err.message,
-              err.response?.data
-            );
-          }
+        if (expoPushTokenResponse.success && expoPushTokenResponse.data) {
+          usuario.expoPushToken = expoPushTokenResponse.data;
+          await AsyncStorage.setItem("user", JSON.stringify(usuario));
         } else {
           Alert.alert(
             "Permissão negada",
             "Não foi possível obter o token de notificação."
           );
+          return;
         }
-
-        // 4️⃣ Se o usuário já tinha login salvo, revalida
-        if (parsedValue?.userToken) {
-          login(parsedValue.userToken);
-        }
-      } catch (error: any) {
-        console.warn("Erro na inicialização:", error.message);
-      } finally {
-        finishLoading();
       }
-    };
 
+      // 3️⃣ Registra device no backend
+      const deviceObj = {
+        uuid: usuario.deviceKey,
+        token: usuario.expoPushToken,
+      };
+
+      try {
+        await axios.post(BASE_API_REGISTER_DEVICE, deviceObj);
+      } catch (err: any) {
+        throw new Error(err.message);
+      }
+
+      // 4️⃣ Se o usuário já tinha login salvo, revalida
+      if (usuario.userToken) login(usuario.userToken);
+    } catch (error: any) {
+      console.warn("Erro na inicialização:", error.message);
+    } finally {
+      finishLoading();
+    }
+  };
+
+  useEffect(() => {
     initialSetUp();
   }, []);
 

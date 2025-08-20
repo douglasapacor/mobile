@@ -4,11 +4,15 @@ import { asyncUser } from "../types";
 const STORAGE_KEY = "user";
 
 export const getUser = async (): Promise<asyncUser> => {
-  const stored = await AsyncStorage.getItem(STORAGE_KEY);
-
   try {
-    return stored ? JSON.parse(stored) : {};
-  } catch {
+    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+
+    if (!stored) throw "";
+
+    const parsed = JSON.parse(stored) as asyncUser;
+
+    return parsed;
+  } catch (error) {
     return {};
   }
 };
